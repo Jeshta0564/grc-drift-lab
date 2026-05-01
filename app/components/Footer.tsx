@@ -27,12 +27,9 @@ export default function Footer() {
             <Link href="/disclaimer" className="hover:text-white transition">
               Disclaimer
             </Link>
-            <a
-              href="mailto:jeshtarao@gmail.com"
-              className="hover:text-white transition"
-            >
+            <Link href="/contact" className="hover:text-white transition">
               Contact
-            </a>
+            </Link>
           </div>
         </div>
 
