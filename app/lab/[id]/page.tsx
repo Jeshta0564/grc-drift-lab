@@ -28,13 +28,25 @@ type AiFeedback = {
 
 const STAGE_OPTIONS: StageId[] = [1, 2, 3, 4, 5, 6];
 
+// Status message thresholds (in seconds)
+const STATUS_MESSAGES = [
+  { upToSec: 7, text: "Reviewing your answer" },
+  { upToSec: 999, text: "Calculating drift score" },
+];
+
+function getStatusMessage(elapsedSec: number): string {
+  for (const m of STATUS_MESSAGES) {
+    if (elapsedSec < m.upToSec) return m.text;
+  }
+  return STATUS_MESSAGES[STATUS_MESSAGES.length - 1].text;
+}
+
 function saveProgress(scenarioId: string, score: number) {
   if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);
     const map: ProgressMap = raw ? JSON.parse(raw) : {};
     const existing = map[scenarioId];
-    // Only update if new score is higher (best score wins)
     if (!existing || score > existing.score) {
       map[scenarioId] = { score, completedAt: new Date().toISOString() };
       localStorage.setItem(PROGRESS_KEY, JSON.stringify(map));
@@ -78,6 +90,75 @@ function StagePicker({
   );
 }
 
+// ============= LOADING PANEL =============
+function LoadingPanel() {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setElapsed((Date.now() - start) / 1000);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsedDisplay = elapsed.toFixed(1);
+  const status = getStatusMessage(elapsed);
+
+  return (
+    <div className="mt-8 rounded-xl border border-[#7f77dd]/40 bg-[#7f77dd]/[0.04] p-7 md:p-8">
+      <div className="flex items-center gap-4 mb-5">
+        <div className="loading-pulse flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] tracking-[0.2em] uppercase text-[#afa9ec] mb-1 font-semibold">
+            Drift Lab
+          </p>
+          <p className="text-base text-white/85 transition-opacity duration-300">
+            {status}
+          </p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-[10px] tracking-[0.2em] uppercase text-white/40 mb-1">
+            Elapsed
+          </p>
+          <p className="text-2xl font-mono font-semibold text-[#afa9ec] tabular-nums">
+            {elapsedDisplay}s
+          </p>
+        </div>
+      </div>
+
+      {/* Progress bar that fills toward the typical 12s range */}
+      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden mb-3">
+        <div
+          className="h-full bg-gradient-to-r from-[#7f77dd] to-[#afa9ec] transition-[width] duration-100"
+          style={{
+            width: `${Math.min((elapsed / 12) * 100, 100)}%`,
+          }}
+        />
+      </div>
+
+      <p className="text-[11px] text-white/40">
+        This usually takes 8-12 seconds. The model is reviewing your reasoning.
+      </p>
+
+      <style>{`
+        .loading-pulse {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #afa9ec;
+          box-shadow: 0 0 14px rgba(175, 169, 236, 0.7);
+          animation: loadingPulse 1.4s ease-in-out infinite;
+        }
+        @keyframes loadingPulse {
+          0%, 100% { transform: scale(0.8); opacity: 0.5; }
+          50%      { transform: scale(1.2); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function FeedbackPanel({
   feedback,
   scenario,
@@ -92,7 +173,6 @@ function FeedbackPanel({
 
   return (
     <div className="mt-8 rounded-xl border border-white/10 overflow-hidden">
-      {/* Score header */}
       <div className="px-6 py-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
         <div>
           <p className="text-[10px] tracking-[0.2em] text-white/45 uppercase mb-1">
@@ -113,7 +193,6 @@ function FeedbackPanel({
       </div>
 
       <div className="p-6 md:p-7 space-y-6">
-        {/* Per-stage breakdown */}
         <div className="space-y-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
@@ -143,7 +222,6 @@ function FeedbackPanel({
           </div>
         </div>
 
-        {/* What you got right */}
         {feedback.whatYouGotRight && feedback.whatYouGotRight.length > 0 && (
           <div className="border-t border-white/10 pt-5">
             <p className="text-[10px] tracking-[0.18em] uppercase text-[#afa9ec] mb-2.5 font-semibold">
@@ -160,7 +238,6 @@ function FeedbackPanel({
           </div>
         )}
 
-        {/* What you missed */}
         {feedback.whatYouMissed && feedback.whatYouMissed.length > 0 && (
           <div className="border-t border-white/10 pt-5">
             <p className="text-[10px] tracking-[0.18em] uppercase text-[#C97070] mb-2.5 font-semibold">
@@ -177,7 +254,6 @@ function FeedbackPanel({
           </div>
         )}
 
-        {/* Senior framing */}
         <div className="border-l-2 border-[#7f77dd]/60 pl-4 py-1">
           <p className="text-[10px] tracking-[0.18em] uppercase text-[#7f77dd] mb-2 font-semibold">
             How a senior practitioner would frame this
@@ -187,7 +263,6 @@ function FeedbackPanel({
           </p>
         </div>
 
-        {/* Actions */}
         <div className="flex flex-wrap gap-3 pt-4 border-t border-white/10">
           <button
             type="button"
@@ -228,7 +303,6 @@ export default function ScenarioPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // If scenario doesn't exist or isn't available, route back
     if (!scenario || scenario.status !== "available") {
       router.replace("/lab");
     }
@@ -256,6 +330,13 @@ export default function ScenarioPage({
     setError(null);
     setFeedback(null);
 
+    // Scroll to the loading panel after a tiny tick so user sees it appear
+    setTimeout(() => {
+      document
+        .getElementById("feedback-anchor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+
     try {
       const res = await fetch("/api/lab-feedback", {
         method: "POST",
@@ -279,13 +360,6 @@ export default function ScenarioPage({
 
       setFeedback(data as AiFeedback);
       saveProgress(scenario!.id, data.score);
-
-      // Scroll to feedback after a brief tick so it lands smoothly
-      setTimeout(() => {
-        document
-          .getElementById("feedback-anchor")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
@@ -296,13 +370,11 @@ export default function ScenarioPage({
   function handleTryAgain() {
     setFeedback(null);
     setError(null);
-    // Keep the user's previous answers so they can edit
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
     <article className="px-4 md:px-10 py-12 md:py-16 max-w-3xl mx-auto w-full">
-      {/* Back link */}
       <Link
         href="/lab"
         className="inline-block text-xs tracking-wider text-white/50 hover:text-white transition mb-8"
@@ -310,7 +382,6 @@ export default function ScenarioPage({
         ← Back to Lab
       </Link>
 
-      {/* Meta row */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <span className="text-[10px] tracking-[0.2em] text-[#7f77dd] uppercase font-medium">
           {DOMAIN_LABELS[scenario.domain]}
@@ -330,19 +401,16 @@ export default function ScenarioPage({
         )}
       </div>
 
-      {/* Title */}
       <h1 className="text-3xl md:text-4xl font-semibold tracking-tight mb-8 leading-tight">
         {scenario.title}
       </h1>
 
-      {/* Situation */}
       <div className="mb-10 space-y-4 text-[15px] text-white/75 leading-relaxed">
         {scenario.situation!.split("\n\n").map((para, i) => (
           <p key={i}>{para}</p>
         ))}
       </div>
 
-      {/* Task */}
       <div className="mb-8 p-5 rounded-lg border border-[#7f77dd]/30 bg-[#7f77dd]/[0.04]">
         <p className="text-[10px] tracking-[0.18em] uppercase text-[#afa9ec] mb-2 font-semibold">
           Your task
@@ -350,7 +418,6 @@ export default function ScenarioPage({
         <p className="text-white/85 leading-relaxed">{scenario.task}</p>
       </div>
 
-      {/* Input form */}
       <div className="space-y-6 mb-6">
         <div className="space-y-3">
           <StagePicker
@@ -384,7 +451,6 @@ export default function ScenarioPage({
         </div>
       </div>
 
-      {/* Submit */}
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -392,7 +458,7 @@ export default function ScenarioPage({
           disabled={!canSubmit}
           className="px-7 py-3 bg-[#7f77dd] text-white text-sm tracking-wide hover:bg-[#afa9ec] transition rounded-md font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {submitting ? "Reviewing your answer…" : "Submit for review"}
+          {submitting ? "Reviewing…" : "Submit for review"}
         </button>
         {!canSubmit && !submitting && (
           <span className="text-[11px] text-white/35">
@@ -407,11 +473,13 @@ export default function ScenarioPage({
         </div>
       )}
 
-      {/* Anchor for smooth scroll */}
       <div id="feedback-anchor" />
 
-      {/* Feedback */}
-      {feedback && (
+      {/* Show loading panel while waiting for AI */}
+      {submitting && <LoadingPanel />}
+
+      {/* Show feedback once it arrives */}
+      {feedback && !submitting && (
         <FeedbackPanel
           feedback={feedback}
           scenario={scenario}
