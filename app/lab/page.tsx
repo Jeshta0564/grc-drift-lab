@@ -14,6 +14,8 @@ import {
 const PROGRESS_KEY = "grc-drift-lab-progress-v1";
 const HARD_UNLOCK_THRESHOLD = 7;
 const HARD_UNLOCK_REQUIRED_COUNT = 2;
+const SUCCESS_GREEN = "#7FBF7F";
+const SUCCESS_GREEN_SOFT = "#5C9F5C";
 
 type ProgressMap = Record<string, { score: number; completedAt: string }>;
 
@@ -47,6 +49,7 @@ function ScenarioCard({
   progress: ProgressMap;
 }) {
   const hasProgress = progress[scenario.id];
+  const isPassed = hasProgress && hasProgress.score >= HARD_UNLOCK_THRESHOLD;
   const isAvailable = scenario.status === "available" && !isLocked;
   const isComingSoon = scenario.status === "coming-soon";
 
@@ -54,7 +57,16 @@ function ScenarioCard({
     "block rounded-lg border p-5 transition relative h-full";
 
   let classes = baseClasses;
-  if (isAvailable) {
+  let cardStyle: React.CSSProperties = {};
+
+  if (isAvailable && isPassed) {
+    classes += " cursor-pointer scenario-card-passed";
+    cardStyle = {
+      borderColor: `${SUCCESS_GREEN}80`,
+      backgroundColor: `${SUCCESS_GREEN}0A`,
+      boxShadow: `0 0 24px ${SUCCESS_GREEN}26, inset 0 0 0 1px ${SUCCESS_GREEN}1A`,
+    };
+  } else if (isAvailable) {
     classes += " border-white/10 hover:border-[#7f77dd]/60 hover:bg-white/[0.02] cursor-pointer";
   } else if (isLocked) {
     classes += " border-white/5 opacity-50 cursor-not-allowed";
@@ -77,8 +89,11 @@ function ScenarioCard({
             </span>
           )}
           {hasProgress && isAvailable && (
-            <span className="text-[9px] tracking-[0.15em] text-[#afa9ec] uppercase">
-              {hasProgress.score}/10
+            <span
+              className="text-[9px] tracking-[0.15em] uppercase font-semibold"
+              style={{ color: isPassed ? SUCCESS_GREEN : "#afa9ec" }}
+            >
+              {isPassed && "✓ "}{hasProgress.score}/10
             </span>
           )}
           {isLocked && (
@@ -106,7 +121,12 @@ function ScenarioCard({
 
       {/* Footer action */}
       <div className="text-[11px] tracking-wide">
-        {isAvailable && (
+        {isAvailable && isPassed && (
+          <span style={{ color: SUCCESS_GREEN }} className="font-medium">
+            Refine and re-attempt →
+          </span>
+        )}
+        {isAvailable && !isPassed && (
           <span className="text-[#7f77dd] font-medium">
             {hasProgress ? "Try again →" : "Start scenario →"}
           </span>
@@ -125,27 +145,61 @@ function ScenarioCard({
 
   if (isAvailable) {
     return (
-      <Link href={`/lab/${scenario.id}`} className={classes}>
+      <Link href={`/lab/${scenario.id}`} className={classes} style={cardStyle}>
         {inner}
       </Link>
     );
   }
-  return <div className={classes}>{inner}</div>;
+  return <div className={classes} style={cardStyle}>{inner}</div>;
 }
 
 function DifficultySection({
   difficulty,
   isLocked,
   progress,
+  showUnlockBanner,
 }: {
   difficulty: Difficulty;
   isLocked: boolean;
   progress: ProgressMap;
+  showUnlockBanner?: boolean;
 }) {
   const scenarios = getScenariosByDifficulty(difficulty);
 
   return (
     <section className="mb-14">
+      {/* Hard tier just-unlocked banner */}
+      {showUnlockBanner && (
+        <div
+          className="mb-5 rounded-lg p-5 unlock-banner"
+          style={{
+            border: `1px solid ${SUCCESS_GREEN}66`,
+            backgroundColor: `${SUCCESS_GREEN}10`,
+            boxShadow: `0 0 30px ${SUCCESS_GREEN}33`,
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className="text-2xl"
+              style={{ color: SUCCESS_GREEN }}
+            >
+              ✓
+            </span>
+            <div>
+              <p
+                className="text-[10px] tracking-[0.2em] uppercase font-semibold mb-0.5"
+                style={{ color: SUCCESS_GREEN }}
+              >
+                Hard tier unlocked
+              </p>
+              <p className="text-sm text-white/85 leading-relaxed">
+                You&apos;ve earned access to the Hard tier scenarios — coming soon.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Section header */}
       <div className="flex items-baseline justify-between mb-5 pb-3 border-b border-white/10">
         <div className="flex items-baseline gap-3">
@@ -178,18 +232,79 @@ function DifficultySection({
   );
 }
 
+function ProgressSummary({
+  completedCount,
+  passedCount,
+  hardUnlocked,
+}: {
+  completedCount: number;
+  passedCount: number;
+  hardUnlocked: boolean;
+}) {
+  // Build a sentence-style summary based on the user's state
+  let line: React.ReactNode;
+
+  if (completedCount === 0) {
+    line = (
+      <>
+        You haven&apos;t attempted any scenarios yet. <span className="text-[#afa9ec]">Pick one to begin</span> — the Easy tier is a good starting point.
+      </>
+    );
+  } else if (hardUnlocked) {
+    line = (
+      <>
+        You&apos;ve scored 7+ on <span style={{ color: SUCCESS_GREEN }} className="font-medium">{passedCount} scenarios</span> across {completedCount} attempts. <span style={{ color: SUCCESS_GREEN }} className="font-medium">The Hard tier is unlocked</span> — though those scenarios are still in development.
+      </>
+    );
+  } else if (passedCount === 0) {
+    line = (
+      <>
+        You&apos;ve attempted <span className="text-[#afa9ec] font-medium">{completedCount} scenario{completedCount === 1 ? "" : "s"}</span> so far. Score <span className="text-white">7 or higher</span> on two Easy or Moderate scenarios to unlock the Hard tier.
+      </>
+    );
+  } else {
+    const need = HARD_UNLOCK_REQUIRED_COUNT - passedCount;
+    line = (
+      <>
+        You&apos;ve scored 7+ on <span style={{ color: SUCCESS_GREEN }} className="font-medium">{passedCount} scenario{passedCount === 1 ? "" : "s"}</span> out of {completedCount} attempted. <span className="text-white">{need} more</span> to unlock the Hard tier.
+      </>
+    );
+  }
+
+  return (
+    <div className="mb-12 p-5 rounded-lg border border-white/10 bg-white/[0.015]">
+      <p className="text-[10px] tracking-[0.2em] text-[#afa9ec] uppercase mb-2 font-semibold">
+        Where you are
+      </p>
+      <p className="text-[15px] text-white/75 leading-relaxed">{line}</p>
+    </div>
+  );
+}
+
 export default function LabPage() {
   const [progress, setProgress] = useState<ProgressMap>({});
   const [hardUnlocked, setHardUnlocked] = useState(false);
+  const [justUnlocked, setJustUnlocked] = useState(false);
 
   useEffect(() => {
     const p = loadProgress();
     setProgress(p);
-    setHardUnlocked(isHardUnlocked(p));
+    const unlocked = isHardUnlocked(p);
+    setHardUnlocked(unlocked);
+
+    // Check session storage for the just-unlocked flag, set by the scenario page
+    if (unlocked && typeof window !== "undefined") {
+      const flag = sessionStorage.getItem("hard-just-unlocked");
+      if (flag === "true") {
+        setJustUnlocked(true);
+        // Clear so the banner only shows once per session
+        sessionStorage.removeItem("hard-just-unlocked");
+      }
+    }
   }, []);
 
   const completedCount = Object.keys(progress).length;
-  const qualifyingCount = Object.entries(progress).filter(([id, data]) => {
+  const passedCount = Object.entries(progress).filter(([id, data]) => {
     const scenario = SCENARIOS.find((s) => s.id === id);
     if (!scenario) return false;
     if (scenario.difficulty !== "easy" && scenario.difficulty !== "moderate") return false;
@@ -211,34 +326,22 @@ export default function LabPage() {
         </p>
       </header>
 
-      {/* Progress strip */}
-      <div className="mb-12 p-5 rounded-lg border border-white/10 bg-white/[0.015]">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] tracking-[0.2em] text-[#afa9ec] uppercase mb-1">
-              Your progress
-            </p>
-            <p className="text-sm text-white/70">
-              {completedCount === 0
-                ? "No scenarios completed yet. Start with Easy."
-                : `${completedCount} scenario${completedCount === 1 ? "" : "s"} completed`}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] tracking-[0.2em] text-[#afa9ec] uppercase mb-1">
-              Hard tier
-            </p>
-            <p className={`text-sm ${hardUnlocked ? "text-white" : "text-white/50"}`}>
-              {hardUnlocked ? "✓ Unlocked" : `${qualifyingCount}/${HARD_UNLOCK_REQUIRED_COUNT} scenarios scored 7+`}
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* Sentence-style progress summary */}
+      <ProgressSummary
+        completedCount={completedCount}
+        passedCount={passedCount}
+        hardUnlocked={hardUnlocked}
+      />
 
       {/* Difficulty sections */}
       <DifficultySection difficulty="easy" isLocked={false} progress={progress} />
       <DifficultySection difficulty="moderate" isLocked={false} progress={progress} />
-      <DifficultySection difficulty="hard" isLocked={!hardUnlocked} progress={progress} />
+      <DifficultySection
+        difficulty="hard"
+        isLocked={!hardUnlocked}
+        progress={progress}
+        showUnlockBanner={hardUnlocked && justUnlocked}
+      />
 
       {/* Footer note */}
       <div className="border-t border-white/10 pt-8 mt-10 text-center">
@@ -250,6 +353,20 @@ export default function LabPage() {
           .
         </p>
       </div>
+
+      <style>{`
+        @keyframes unlockGlow {
+          0%   { box-shadow: 0 0 30px rgba(127, 191, 127, 0.20); }
+          50%  { box-shadow: 0 0 50px rgba(127, 191, 127, 0.40); }
+          100% { box-shadow: 0 0 30px rgba(127, 191, 127, 0.20); }
+        }
+        .unlock-banner {
+          animation: unlockGlow 2.4s ease-in-out infinite;
+        }
+        .scenario-card-passed:hover {
+          background-color: rgba(127, 191, 127, 0.06) !important;
+        }
+      `}</style>
     </article>
   );
 }

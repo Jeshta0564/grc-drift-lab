@@ -10,9 +10,13 @@ import {
   DOMAIN_LABELS,
   DIFFICULTY_LABELS,
   Scenario,
+  SCENARIOS,
 } from "../scenarios";
 
 const PROGRESS_KEY = "grc-drift-lab-progress-v1";
+const HARD_UNLOCK_THRESHOLD = 7;
+const HARD_UNLOCK_REQUIRED_COUNT = 2;
+
 type ProgressMap = Record<string, { score: number; completedAt: string }>;
 
 type AiFeedback = {
@@ -28,7 +32,6 @@ type AiFeedback = {
 
 const STAGE_OPTIONS: StageId[] = [1, 2, 3, 4, 5, 6];
 
-// Status message thresholds (in seconds)
 const STATUS_MESSAGES = [
   { upToSec: 7, text: "Reviewing your answer" },
   { upToSec: 999, text: "Calculating drift score" },
@@ -41,15 +44,46 @@ function getStatusMessage(elapsedSec: number): string {
   return STATUS_MESSAGES[STATUS_MESSAGES.length - 1].text;
 }
 
-function saveProgress(scenarioId: string, score: number) {
-  if (typeof window === "undefined") return;
+function loadProgress(): ProgressMap {
+  if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);
-    const map: ProgressMap = raw ? JSON.parse(raw) : {};
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function countPassedEasyOrModerate(progress: ProgressMap): number {
+  return Object.entries(progress).filter(([id, data]) => {
+    const scenario = SCENARIOS.find((s) => s.id === id);
+    if (!scenario) return false;
+    if (scenario.difficulty !== "easy" && scenario.difficulty !== "moderate") return false;
+    return data.score >= HARD_UNLOCK_THRESHOLD;
+  }).length;
+}
+
+function saveProgressAndCheckUnlock(scenarioId: string, score: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const before = loadProgress();
+    const wasUnlockedBefore =
+      countPassedEasyOrModerate(before) >= HARD_UNLOCK_REQUIRED_COUNT;
+
+    const map: ProgressMap = { ...before };
     const existing = map[scenarioId];
     if (!existing || score > existing.score) {
       map[scenarioId] = { score, completedAt: new Date().toISOString() };
       localStorage.setItem(PROGRESS_KEY, JSON.stringify(map));
+    }
+
+    const isUnlockedNow =
+      countPassedEasyOrModerate(map) >= HARD_UNLOCK_REQUIRED_COUNT;
+
+    // If this submission was the one that crossed the unlock threshold,
+    // flag it for the lab page banner.
+    if (!wasUnlockedBefore && isUnlockedNow) {
+      sessionStorage.setItem("hard-just-unlocked", "true");
     }
   } catch (err) {
     console.error("Could not save progress:", err);
@@ -90,7 +124,7 @@ function StagePicker({
   );
 }
 
-// ============= LOADING PANEL =============
+// ============= LOADING PANEL (timer removed) =============
 function LoadingPanel() {
   const [elapsed, setElapsed] = useState(0);
 
@@ -98,48 +132,25 @@ function LoadingPanel() {
     const start = Date.now();
     const interval = setInterval(() => {
       setElapsed((Date.now() - start) / 1000);
-    }, 100);
+    }, 250);
     return () => clearInterval(interval);
   }, []);
 
-  const elapsedDisplay = elapsed.toFixed(1);
   const status = getStatusMessage(elapsed);
 
   return (
     <div className="mt-8 rounded-xl border border-[#7f77dd]/40 bg-[#7f77dd]/[0.04] p-7 md:p-8">
-      <div className="flex items-center gap-4 mb-5">
+      <div className="flex items-center gap-4">
         <div className="loading-pulse flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-[10px] tracking-[0.2em] uppercase text-[#afa9ec] mb-1 font-semibold">
             Drift Lab
           </p>
           <p className="text-base text-white/85 transition-opacity duration-300">
-            {status}
-          </p>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-[10px] tracking-[0.2em] uppercase text-white/40 mb-1">
-            Elapsed
-          </p>
-          <p className="text-2xl font-mono font-semibold text-[#afa9ec] tabular-nums">
-            {elapsedDisplay}s
+            {status}…
           </p>
         </div>
       </div>
-
-      {/* Progress bar that fills toward the typical 12s range */}
-      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden mb-3">
-        <div
-          className="h-full bg-gradient-to-r from-[#7f77dd] to-[#afa9ec] transition-[width] duration-100"
-          style={{
-            width: `${Math.min((elapsed / 12) * 100, 100)}%`,
-          }}
-        />
-      </div>
-
-      <p className="text-[11px] text-white/40">
-        This usually takes 8-12 seconds. The model is reviewing your reasoning.
-      </p>
 
       <style>{`
         .loading-pulse {
@@ -169,7 +180,7 @@ function FeedbackPanel({
   onTryAgain: () => void;
 }) {
   const scoreColor =
-    feedback.score >= 7 ? "#afa9ec" : feedback.score >= 4 ? "#C97070" : "#A04545";
+    feedback.score >= 7 ? "#7FBF7F" : feedback.score >= 4 ? "#C97070" : "#A04545";
 
   return (
     <div className="mt-8 rounded-xl border border-white/10 overflow-hidden">
@@ -198,7 +209,7 @@ function FeedbackPanel({
             <div className="flex items-center gap-2 mb-1.5">
               <span
                 className="text-[10px] tracking-[0.18em] uppercase font-semibold"
-                style={{ color: feedback.stage1Correct ? "#afa9ec" : "#C97070" }}
+                style={{ color: feedback.stage1Correct ? "#7FBF7F" : "#C97070" }}
               >
                 Stage 1 · {feedback.stage1Correct ? "Correct" : "Incorrect"}
               </span>
@@ -211,7 +222,7 @@ function FeedbackPanel({
             <div className="flex items-center gap-2 mb-1.5">
               <span
                 className="text-[10px] tracking-[0.18em] uppercase font-semibold"
-                style={{ color: feedback.stage2Correct ? "#afa9ec" : "#C97070" }}
+                style={{ color: feedback.stage2Correct ? "#7FBF7F" : "#C97070" }}
               >
                 Stage 2 · {feedback.stage2Correct ? "Correct" : "Incorrect"}
               </span>
@@ -224,13 +235,13 @@ function FeedbackPanel({
 
         {feedback.whatYouGotRight && feedback.whatYouGotRight.length > 0 && (
           <div className="border-t border-white/10 pt-5">
-            <p className="text-[10px] tracking-[0.18em] uppercase text-[#afa9ec] mb-2.5 font-semibold">
+            <p className="text-[10px] tracking-[0.18em] uppercase text-[#7FBF7F] mb-2.5 font-semibold">
               What you got right
             </p>
             <ul className="space-y-1.5">
               {feedback.whatYouGotRight.map((point, i) => (
                 <li key={i} className="text-sm text-white/70 leading-relaxed pl-4 relative">
-                  <span className="absolute left-0 top-2 w-1 h-1 rounded-full bg-[#afa9ec]"></span>
+                  <span className="absolute left-0 top-2 w-1 h-1 rounded-full bg-[#7FBF7F]"></span>
                   {point}
                 </li>
               ))}
@@ -256,7 +267,7 @@ function FeedbackPanel({
 
         <div className="border-l-2 border-[#7f77dd]/60 pl-4 py-1">
           <p className="text-[10px] tracking-[0.18em] uppercase text-[#7f77dd] mb-2 font-semibold">
-            How a senior practitioner would frame this
+            How a tutor would frame this
           </p>
           <p className="text-sm text-white/75 leading-relaxed italic">
             {feedback.seniorFraming}
@@ -269,7 +280,7 @@ function FeedbackPanel({
             onClick={onTryAgain}
             className="px-5 py-2.5 border border-white/20 text-white text-sm hover:bg-white/5 hover:border-white/40 transition rounded-md"
           >
-            Try again
+            Refine and try again
           </button>
           <Link
             href="/lab"
@@ -330,7 +341,6 @@ export default function ScenarioPage({
     setError(null);
     setFeedback(null);
 
-    // Scroll to the loading panel after a tiny tick so user sees it appear
     setTimeout(() => {
       document
         .getElementById("feedback-anchor")
@@ -359,7 +369,7 @@ export default function ScenarioPage({
       }
 
       setFeedback(data as AiFeedback);
-      saveProgress(scenario!.id, data.score);
+      saveProgressAndCheckUnlock(scenario!.id, data.score);
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
@@ -475,10 +485,8 @@ export default function ScenarioPage({
 
       <div id="feedback-anchor" />
 
-      {/* Show loading panel while waiting for AI */}
       {submitting && <LoadingPanel />}
 
-      {/* Show feedback once it arrives */}
       {feedback && !submitting && (
         <FeedbackPanel
           feedback={feedback}
