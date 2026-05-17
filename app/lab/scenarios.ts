@@ -1,5 +1,4 @@
 // Single source of truth for all Lab scenarios.
-// Add scenarios incrementally - the UI auto-renders based on this data.
 
 export type Difficulty = "easy" | "moderate" | "hard";
 export type Domain = "finance" | "healthcare" | "education" | "industrial";
@@ -284,42 +283,189 @@ Stage 1 (Intent) is NOT a strong answer - intent was clear. Stage 2 (Control) is
     },
   },
 
-  // ============ HARD TIER STUBS ============
+  // ============ HARD TIER ============
   {
-    id: "hard-finance-stub",
-    title: "Coming soon",
+    id: "equifax-cumulative",
+    title: "Equifax — Two Years of Compounded Failure",
     domain: "finance",
     difficulty: "hard",
-    status: "coming-soon",
-    isRealWorld: false,
-    shortPrompt: "A finance-sector hard scenario is being prepared.",
+    status: "available",
+    isRealWorld: true,
+    shortPrompt:
+      "The 2017 breach was not one failure but six. A 2018 House Oversight report described it as 'entirely preventable' across every preceding stage.",
+    situation: `Equifax was one of the three largest credit reporting agencies in the United States, holding sensitive financial and identity data on hundreds of millions of consumers across the US, UK and Canada.
+
+In 2015, Equifax began an aggressive growth campaign that expanded its data collection considerably. A 2015 internal audit revealed a significant backlog of unresolved vulnerabilities, found that the company was not adhering to its own patching schedules, and noted that IT staff lacked a comprehensive asset inventory. The patching process at the time relied on an honour system without strict enforcement. The audit outlined remediation actions; many remained outstanding two years later.
+
+On 7 March 2017, Apache disclosed CVE-2017-5638, a critical vulnerability in the Struts web framework, and released a patch the same day. The US Computer Emergency Readiness Team notified Equifax on 8 March. Equifax's documented control required patching critical vulnerabilities within 48 hours; the global vulnerability management team emailed system administrators on 9 March. However, the recipient list for the notice was out of date, and the personnel responsible for the affected Automated Consumer Interview System (ACIS) did not receive it. A scan on 15 March returned no findings - it did not detect the still-vulnerable ACIS.
+
+In May 2017, attackers exploited the unpatched Struts vulnerability on ACIS. They moved laterally for 76 days, locating plaintext credentials on internal systems that unlocked access to broader databases. They issued over 9,000 queries and exfiltrated data in small batches. The intrusion went undetected because a network monitoring tool had been inactive for 19 months due to an expired SSL certificate. The expired certificate was renewed on 29 July 2017, at which point the breach was detected. Approximately 147 million consumer records were affected. The 2018 House Oversight Committee report described the breach as "entirely preventable" and cited a lack of accountability, an execution gap between IT policy and operations, and inadequate IT asset inventory.`,
+    task: "Identify two stages of the Drift Model where this scenario shows the most significant drift, and justify each.",
+    modelAnswer: {
+      acceptablePairs: [
+        [2, 6], [6, 2],
+        [3, 6], [6, 3],
+        [5, 6], [6, 5],
+        [2, 5], [5, 2],
+        [3, 5], [5, 3],
+      ],
+      reasoning: `This is a Hard scenario because drift is genuinely present at almost every preceding stage. The strongest readings involve Stage 6 (Drift) paired with one specific stage where the drift surfaced most clearly. Multiple defensible pairs.
+
+Reading 1 (strongest): Stage 2 (Control) + Stage 6 (Drift).
+- Stage 2 - The patching control was poorly designed for the scale of Equifax's environment. A 48-hour patching window without enforcement, without complete asset inventory, and dependent on a manual email distribution list was unenforceable from inception. The control existed on paper; it could not have worked even if everyone tried to follow it perfectly.
+- Stage 6 - The breach was the surfacing of accumulated drift across multiple stages over years (2015 audit findings unremediated by 2017, expired certificate disabling monitoring for 19 months, plaintext credentials on internal systems). Drift compounded faster than remediation.
+
+Reading 2 (also strong): Stage 3 (Implementation) + Stage 6 (Drift).
+- Stage 3 - Implementation failures are equally damning: the patch notification recipient list was out of date, scans missed the vulnerable system, monitoring tools had been inactive due to certificate management failures. The control's operational pipeline was broken on multiple fronts.
+- Stage 6 as above.
+
+Reading 3 (also acceptable): Stage 5 (Audit) + Stage 6 (Drift).
+- Stage 5 - The 2015 internal audit had identified most of the deficiencies that enabled the breach. Audit produced visibility but did not drive closure. The audit cycle ran; the operational cycle didn't respond.
+- Stage 6 as above.
+
+Other combinations involving Stages 2, 3, 5 paired together (without Stage 6) are also acceptable because they all name real, defensible stages where drift was visible.
+
+Stage 1 (Intent) is a defensible secondary read - aggressive growth without corresponding security investment is an Intent issue - but it is a weaker primary answer than the operational failures.`,
+    },
   },
   {
-    id: "hard-healthcare-stub",
-    title: "Coming soon",
+    id: "anthem-data-warehouse",
+    title: "Anthem — When the Front Line Wasn't",
     domain: "healthcare",
     difficulty: "hard",
-    status: "coming-soon",
-    isRealWorld: false,
-    shortPrompt: "A healthcare-sector hard scenario is being prepared.",
+    status: "available",
+    isRealWorld: true,
+    shortPrompt:
+      "A phishing email reached a system administrator. Eleven months later, 78.8 million records were gone. The technical controls Anthem trusted weren't where the actual gap lived.",
+    situation: `Anthem Inc. was the second-largest health insurance company in the United States, holding personal and healthcare information for tens of millions of members across multiple state subsidiaries.
+
+Anthem maintained a documented information security framework with controls aligned to industry expectations: identity and access management, network segmentation, security awareness training, monitoring, incident response. A subsequent investigation by the California Department of Insurance later concluded the company had taken "reasonable measures before the data breach to protect its data." Anthem invested in technical defences and considered itself adequately controlled.
+
+On 18 February 2014, a system administrator at Amerigroup, an Anthem subsidiary, opened a phishing email that contained a malicious link to a typosquatted domain ("we11point.com" - a misspelling of the wellpoint.com brand). The attacker, later attributed to a Chinese state-aligned group known as Deep Panda, used the foothold to install malware, harvest credentials, and move laterally through the network.
+
+Over the following ten months, the attackers escalated privileges through multiple compromised accounts, conducted reconnaissance of internal systems, and eventually reached Anthem's enterprise data warehouse. Beginning around 10 December 2014, they began running database queries against the warehouse using legitimate administrator credentials. The data in the warehouse - including names, dates of birth, Social Security numbers, member identification numbers, employment information and income data - was not encrypted at rest within the database. Anthem's internal systems could not distinguish authorised analyst queries from the attacker's queries because both used valid credentials and originated from inside the network.
+
+Suspicious activity was first detected on 27 January 2015, when a database administrator noticed unfamiliar query patterns. Anthem publicly disclosed the breach on 4 February 2015. Approximately 78.8 million records were exfiltrated. The breach was attributed to multiple control gaps but the proximate cause was that data warehouse access required only valid credentials - the same conditions an authorised analyst would meet - with no behavioural monitoring distinguishing normal use from extraction patterns.`,
+    task: "Identify two stages of the Drift Model where this scenario shows the most significant drift, and justify each.",
+    modelAnswer: {
+      acceptablePairs: [
+        [2, 4], [4, 2],
+        [2, 3], [3, 2],
+        [3, 4], [4, 3],
+        [4, 5], [5, 4],
+      ],
+      reasoning: `This is a Hard scenario because the drift is subtle. Anthem had reasonable controls - the failure was not absence but inadequacy relative to the threat model. Multiple defensible readings.
+
+Reading 1 (strongest): Stage 2 (Control) + Stage 4 (Reality).
+- Stage 2 - The control set was poorly calibrated to the actual risk. Specifically, the data warehouse access control relied on credential validity alone, with no behavioural monitoring to distinguish authorised queries from extraction patterns. As a control design for a database containing 78.8 million identity records, this was inadequate from inception. The control existed but was insufficient.
+- Stage 4 - Operational reality also drifted: nine thousand-plus queries over weeks, originating from inside the network, did not trigger meaningful detection. Reality diverged from the implicit expectation that "monitoring" would catch anomalous patterns.
+
+Reading 2 (also strong): Stage 2 (Control) + Stage 3 (Implementation).
+- Stage 2 as above.
+- Stage 3 - Even where controls were sound, implementation gaps mattered: data at rest in the warehouse was not encrypted; lateral movement was possible because privilege boundaries weren't enforced at the implementation level.
+
+Reading 3 (also strong): Stage 3 (Implementation) + Stage 4 (Reality).
+- Stage 3 - As above. Unencrypted data, weak privilege boundaries, no behavioural anomaly detection on warehouse queries.
+- Stage 4 - As above.
+
+Reading 4 (acceptable): Stage 4 (Reality) + Stage 5 (Audit).
+- Stage 4 - The technical controls Anthem invested in did not catch eleven months of lateral movement, multiple credential compromises, and weeks of large-scale extraction. Reality drifted substantially from what the security program promised.
+- Stage 5 - The California investigation explicitly noted Anthem had "taken reasonable measures" - audit and assurance found the program adequate, yet the operational truth was different.
+
+Stage 1 (Intent) is NOT a strong primary answer - the intent was sound. Stage 6 (Drift) is weaker than naming the specific stages where the drift was visible.`,
+    },
   },
   {
-    id: "hard-education-stub",
-    title: "Coming soon",
+    id: "moveit-clearinghouse",
+    title: "MOVEit — The Vendor Behind 900 Universities",
     domain: "education",
     difficulty: "hard",
-    status: "coming-soon",
-    isRealWorld: false,
-    shortPrompt: "An education-sector hard scenario is being prepared.",
+    status: "available",
+    isRealWorld: true,
+    shortPrompt:
+      "Hundreds of universities held strong internal security postures and were still breached - because the vulnerability lived in a third party they had each, individually, decided to trust.",
+    situation: `In June 2023, attackers exploited a zero-day vulnerability in MOVEit Transfer - a managed file transfer product from Progress Software widely used to move bulk data between organisations and their service providers. The vulnerability allowed unauthenticated SQL injection, granting full access to the contents of MOVEit servers.
+
+One of the most affected downstream organisations was the National Student Clearinghouse (NSC), a US non-profit that processes enrolment, transcript and certification data on behalf of nearly all US higher education institutions. NSC used MOVEit to receive and forward data between universities, lenders, employers and government agencies. When NSC's MOVEit server was compromised on or around 30 May 2023, attackers accessed files containing personal data from approximately 900 colleges and universities - including names, dates of birth, Social Security numbers, student identification numbers and school records.
+
+The compromised universities included Cornell, UCLA, the University of Georgia, the University of Rochester and many others. Most of these institutions had documented information security frameworks, conducted regular security reviews, and had not themselves been directly attacked. Their data had reached the attackers because they had each, at different points over a period of years, entered a vendor relationship with NSC for legitimate operational purposes, and NSC in turn relied on MOVEit. The universities' contracts with NSC included standard third-party security clauses but did not directly inspect or test the security of MOVEit itself or the broader downstream vendor chain.
+
+Several universities later disclosed that their internal third-party risk assessments had assessed NSC as low-to-moderate risk based on the type of data exchanged, and had not separately evaluated NSC's own vendors. Investigation of similar MOVEit-related breaches at federal agencies and corporations showed comparable patterns: organisations had assessed their direct vendors and relied on those vendors' security attestations without independent verification of the sub-vendor chain.`,
+    task: "Identify two stages of the Drift Model where this scenario shows the most significant drift, and justify each.",
+    modelAnswer: {
+      acceptablePairs: [
+        [1, 5], [5, 1],
+        [2, 5], [5, 2],
+        [1, 3], [3, 1],
+        [2, 3], [3, 2],
+      ],
+      reasoning: `This is a Hard scenario because the drift exists in the gap between how third-party risk is conceptualised and what fourth/fifth-party exposure actually looks like. The right stages depend on how you frame the problem.
+
+Reading 1 (strongest): Stage 1 (Intent) + Stage 5 (Audit).
+- Stage 1 - The universities' documented intent on third-party risk was misaligned with the structure of their actual vendor chains. The intent typically covered "vendors" as a single category, but in reality vendors had vendors, and risk traveled through that chain. The intent never explicitly extended to fourth-party or downstream-vendor exposure. This is an Intent-stage failure analogous to Latitude or HWL Ebsworth - the documented stance is too narrow for the operational reality.
+- Stage 5 - Audit and vendor-risk assessment processes confirmed the direct relationship (university to NSC) was acceptable, but did not extend their lens to the sub-vendor chain. Audit confirmed what was visible; what was invisible was where the breach lived.
+
+Reading 2 (also strong): Stage 2 (Control) + Stage 5 (Audit).
+- Stage 2 - The third-party risk control was poorly designed for modern supply chains. A control framework that assesses direct vendors but treats sub-vendor relationships as out of scope is structurally inadequate when sub-vendors hold or transit the same data. The control set should have included sub-vendor inspection or independent verification of vendor attestations.
+- Stage 5 as above.
+
+Reading 3 (also acceptable): Stage 1 (Intent) + Stage 3 (Implementation).
+- Stage 1 as above.
+- Stage 3 - Implementation of third-party risk programs at universities relied on vendor self-attestations rather than independent verification. Implementation gap - the program existed but did not produce the visibility it claimed to.
+
+Reading 4 (acceptable): Stage 2 (Control) + Stage 3 (Implementation).
+- Stage 2 as above.
+- Stage 3 as above.
+
+Stage 4 (Reality) is a defensible read but weaker because the failure was less about operational drift over time and more about a structural blind spot baked into how the program was conceived and run. Stage 6 (Drift) is weaker than naming the specific stages where the gap lives.`,
+    },
   },
   {
-    id: "hard-industrial-stub",
-    title: "Coming soon",
+    id: "colonial-pipeline",
+    title: "Colonial Pipeline — The Account No One Switched Off",
     domain: "industrial",
     difficulty: "hard",
-    status: "coming-soon",
-    isRealWorld: false,
-    shortPrompt: "An industrial-sector hard scenario is being prepared.",
+    status: "available",
+    isRealWorld: true,
+    shortPrompt:
+      "45% of East Coast US fuel supply went down because a 'legacy' VPN account that no one was actively using still had access and only needed a password.",
+    situation: `Colonial Pipeline Company operates a 5,500-mile pipeline network supplying approximately 45% of the fuel consumed on the US East Coast - gasoline, diesel and jet fuel. As critical national infrastructure, the company operated under various regulatory and contractual cybersecurity expectations.
+
+Colonial maintained documented security policies including password complexity requirements, controls around remote access, and standard infrastructure protections. The CEO later testified before the US Senate that the compromised password had complied with the company's password complexity rules - "it was a complicated password, I want to be clear on that. It was not a Colonial123-type password."
+
+In May 2021, attackers gained access to Colonial's IT network through a single set of credentials for a legacy VPN account. The account was not actively used and had been left enabled. It used single-factor authentication: a password only, with no second factor. The password had likely been exposed in an unrelated prior data breach and was reused on the Colonial VPN. There is no public indication the attackers needed to do anything sophisticated to obtain or test the credential - they had it, it worked, and they were inside.
+
+Once on the corporate network, the attackers (the DarkSide ransomware-as-a-service group) escalated and moved through Colonial's IT environment. They exfiltrated approximately 100 GB of data and deployed ransomware on the corporate billing and accounting systems. The pipeline's operational technology (OT) network was reportedly not directly compromised, but Colonial chose to shut down pipeline operations entirely on 7 May 2021 because they could no longer reliably bill for fuel deliveries and were concerned about lateral risk to the OT environment. The shutdown lasted approximately six days. Fuel shortages, panic buying and a US national state of emergency followed. Colonial paid approximately $4.4 million in ransom.
+
+Multiple post-incident analyses noted that MFA had been a baseline industry expectation for remote access to critical infrastructure for years before the breach. The legacy VPN account was reportedly believed by the company to be inactive but had not been disabled, audited, or migrated to the MFA-protected access path used by current employees.`,
+    task: "Identify two stages of the Drift Model where this scenario shows the most significant drift, and justify each.",
+    modelAnswer: {
+      acceptablePairs: [
+        [4, 5], [5, 4],
+        [3, 4], [4, 3],
+        [4, 6], [6, 4],
+        [3, 5], [5, 3],
+      ],
+      reasoning: `This is a Hard scenario because the drift is concentrated in the maintenance, not the design. Strong controls existed; they didn't get applied to a forgotten corner. Multiple defensible readings.
+
+Reading 1 (strongest): Stage 4 (Reality) + Stage 5 (Audit).
+- Stage 4 - MFA was a baseline industry expectation for remote access to critical infrastructure. The current access path used MFA. But operational reality included a legacy VPN account that bypassed the current standard entirely - a single-factor account on a path believed to be inactive. Reality drifted from the documented expectations specifically because no one had decommissioned the old access path when the new one was rolled out.
+- Stage 5 - Audit and access-review cycles did not detect the legacy account. Whatever access reviews existed, they did not surface the fact that an account believed to be inactive was still enabled, still had network reach, and still required only a password. The audit lens was looking at active accounts; the breach lived in an account that "wasn't being used."
+
+Reading 2 (also strong): Stage 3 (Implementation) + Stage 4 (Reality).
+- Stage 3 - The MFA implementation was incomplete. When the company migrated to MFA-protected remote access, the legacy VPN was not retired or migrated. Implementation of the modern control left a parallel non-compliant path in place. Day-one implementation gap that persisted.
+- Stage 4 - As above.
+
+Reading 3 (also acceptable): Stage 4 (Reality) + Stage 6 (Drift).
+- Stage 4 - As above.
+- Stage 6 - The cumulative drift around legacy systems - accounts that exist because they always have, controls that lag the current standard because no one owns retiring the old one - is exactly the compounding pattern Stage 6 describes.
+
+Reading 4 (defensible): Stage 3 (Implementation) + Stage 5 (Audit).
+- Stage 3 - As above.
+- Stage 5 - As above.
+
+Stage 1 (Intent) is weaker - the intent (require MFA for critical infrastructure remote access) was reasonable. Stage 2 (Control) is weaker - the control was reasonable. The failure was in keeping the implementation comprehensive and the audit lens wide enough to catch lingering exceptions.`,
+    },
   },
 ];
 
